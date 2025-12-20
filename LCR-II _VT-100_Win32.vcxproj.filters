@@ -34,4 +34,12 @@
       <Filter>Fichiers de ressources</Filter>
     </Image>
   </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="..\..\..\..\Windows\WindowsShell.Manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="bin241.bin">
+      <Filter>Fichiers de ressources</Filter>
+    </None>
+  </ItemGroup>
 </Project>

@@ -14,6 +14,8 @@
 
 #pragma warning(disable:4996)
 #pragma warning(disable:6387)
+#pragma warning(disable:4311)
+#pragma warning(disable:4302)
 struct Cellules {
     char ch;
     COLORREF fg;
@@ -24,7 +26,7 @@ struct Ecran {
     Cellules buf[LIGNES][COLLONES];
     int row = 0, col = 0;
     COLORREF curFg = RGB(255, 255, 255);
-    COLORREF curBg = RGB(0, 0, 0);
+    COLORREF curBg = RGB(120, 120, 120);
     bool curBold = false;
     Ecran() { Purger(); }
     void Purger() {
@@ -61,21 +63,28 @@ struct Ecran {
         }
     }
     void Attribution(const std::string& params) {
-        if (params.empty()) { curFg = RGB(255, 255, 255); curBg = RGB(0, 0, 0); curBold = false; return; }
+        if (params.empty()) { 
+            curFg = RGB(255, 255, 255); 
+            curBg = RGB(0x00,0x00,0x00); 
+            curBold = false; 
+            return; 
+        }
         std::stringstream ss(params);
         std::string tok;
         while (std::getline(ss, tok, ';')) {
             int code = atoi(tok.c_str());
-            if (code == 0) { curFg = RGB(255, 255, 255); curBg = RGB(0, 0, 0); curBold = false; }
+            if (code == 0) { 
+                curFg = RGB(255, 255, 255); 
+                curBg = RGB(0x00,0x00,0x00); 
+                curBold = false; 
+            }
             else if (code == 1) { curBold = true; }
             else if (code >= 30 && code <= 37) {
-                static COLORREF colors[8] = { RGB(0,0,0),RGB(255,0,0),RGB(0,255,0),RGB(255,255,0),
-                                           RGB(0,0,255),RGB(255,0,255),RGB(0,255,255),RGB(255,255,255) };
+                static COLORREF colors[8] = { RGB(0x00,0x00,0x00),RGB(255,0,0),RGB(0,255,0),RGB(255,255,0),RGB(0,0,255),RGB(255,0,255),RGB(0,255,255),RGB(255,255,255) };
                 curFg = colors[code - 30];
             }
             else if (code >= 40 && code <= 47) {
-                static COLORREF colors[8] = { RGB(0,0,0),RGB(255,0,0),RGB(0,255,0),RGB(255,255,0),
-                                           RGB(0,0,255),RGB(255,0,255),RGB(0,255,255),RGB(255,255,255) };
+                static COLORREF colors[8] = { RGB(0x00,0x00,0x00),RGB(255,0,0),RGB(0,255,0),RGB(255,255,0),RGB(0,0,255),RGB(255,0,255),RGB(0,255,255),RGB(255,255,255) };
                 curBg = colors[code - 40];
             }
         }
@@ -95,7 +104,13 @@ HANDLE gCom = INVALID_HANDLE_VALUE;
 HANDLE gRx = nullptr;
 volatile bool gRunning = false;
 AppState g;
-char MasqueBoot[] = {};
+char MasqueBoot[] = {0};
+WNDCLASS wc{0};
+SYSTEMTIME st;
+WCHAR buffer[MAX_PATH];
+WCHAR jours[7][9] = { L"dimanche", L"lundi", L"mardi", L"mercredi", L"jeudi", L"vendredi", L"samedi" };
+WCHAR mois[12][10] = { L"janvier", L"février", L"mars", L"avril", L"mai", L"juin", L"juillet", L"août", L"septembre", L"octobre", L"novembre", L"décembre" };
+
 HANDLE OuvrirPortCom(const std::wstring& portName, DWORD baud) {
     HANDLE h = CreateFileW(portName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
     if (h == INVALID_HANDLE_VALUE) return h;
@@ -165,7 +180,8 @@ void EmulerVT100(const std::string& data) {
             if (j >= data.size()) break;
             char cmd = data[j];
             if (cmd == 'H') {
-                int r = 0, c = 0; sscanf(params.c_str(), "%d;%d", &r, &c);
+                int r = 0, c = 0; 
+                int hr=sscanf(params.c_str(), "%d;%d", &r, &c);
                 gScreen.PositionnerCurseur(r - 1, c - 1);
             }
             else if (cmd == 'J') {
@@ -187,7 +203,7 @@ void EmulerVT100(const std::string& data) {
 }
 
 void Afficher(HDC hdc) {
-    HFONT hFont = CreateFont(16, 8, 0, 0, FW_NORMAL, 0, 0, 0, ANSI_CHARSET,OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH | FF_DONTCARE, L"Consolas");
+    HFONT hFont = CreateFont(16, 8, 0, 0, FW_NORMAL, 0x00,0x00,0x00, ANSI_CHARSET,OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH | FF_DONTCARE, L"Consolas");
     HFONT old = (HFONT)SelectObject(hdc, hFont);
     for (int r = 0; r < LIGNES; r++) {
         for (int c = 0; c < COLLONES; c++) {
@@ -200,21 +216,44 @@ void Afficher(HDC hdc) {
     SelectObject(hdc, old);
     DeleteObject(hFont);
 }
-void appendText(HWND hEdit, const std::string& s) { int len = GetWindowTextLengthA(hEdit); SendMessageA(hEdit, EM_SETSEL, len, len); SendMessageA(hEdit, EM_REPLACESEL, FALSE, (LPARAM)s.c_str()); }
+void appendText(HWND hEdit, const std::string& s) { 
+    int len = GetWindowTextLengthA(hEdit); 
+    SendMessageA(hEdit, EM_SETSEL, len, len); 
+    SendMessageA(hEdit, EM_REPLACESEL, FALSE, (LPARAM)s.c_str()); 
+}
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
+}
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE: {
         gHwnd = hwnd;
-        g.hEdit = CreateWindowExA(WS_EX_CLIENTEDGE|WS_EX_DLGMODALFRAME, "EDIT", "", WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL, 0, 0, 0, 0, hwnd, (HMENU)0x1FE, GetModuleHandle(nullptr), nullptr);
+        g.hEdit = CreateWindowExA(WS_EX_CLIENTEDGE|WS_EX_DLGMODALFRAME, "EDIT", "", WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL, 0x00,0x00,0x00, 0, hwnd, (HMENU)0x1FE, GetModuleHandle(nullptr), nullptr);
         HFONT hFont = (HFONT)GetStockObject(ANSI_FIXED_FONT); 
         SendMessage(g.hEdit, WM_SETFONT, (WPARAM)hFont, TRUE); 
-        CreateStatusWindow(WS_CHILD | WS_VISIBLE, info, hwnd, 0x500);
+        CreateStatusWindow(WS_CHILD | WS_VISIBLE, L"", hwnd, 0x500);
         return 0;
     }
     case WM_SIZE: { 
         RECT rc; 
         GetClientRect(hwnd, &rc); 
-        MoveWindow(g.hEdit, 0, 0, rc.right, rc.bottom - 40, TRUE); 
+        MoveWindow(g.hEdit, 0, 0, rc.right, rc.bottom - 40, TRUE);
+        MoveWindow(GetDlgItem(hwnd,0x500), 0, rc.bottom - 40, rc.right, rc.bottom - 20, TRUE);
         return 0;
     }
     case WM_PAINT: {
@@ -228,7 +267,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         EmulerVT100(*payload); delete payload; 
         return 0; 
     }
-    case WM_CHAR: { 
+    case WM_HELP: {
+        DialogBox(wc.hInstance, MAKEINTRESOURCE(0x67), hwnd, About);
+        return true;
+    }
+    case WM_CHAR: {
         if (g.hCom != INVALID_HANDLE_VALUE) { 
             char c = (char)wParam; 
             if (c == '\r') { 
@@ -240,19 +283,31 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         return 0;   
     }
-    case WM_DESTROY: PostQuitMessage(0); return 0; 
+    case WM_TIMER: { 
+        GetLocalTime(&st); 
+        wsprintf(buffer, L"Nous sommes %s, le %2d %s %4d il est %.2d:%.2d:%.2d", jours[st.wDayOfWeek], st.wDay, mois[st.wMonth - 1], st.wYear, st.wHour, st.wMinute, st.wSecond); 
+        SetDlgItemText(hwnd, 0x500, buffer); 
+    }break;
+    case WM_CTLCOLORSTATIC: { SetTextColor((HDC)wParam, RGB(128, 128, 0xFF)); SetBkMode((HDC)wParam, TRANSPARENT); }return (LONG)wc.hbrBackground;
+    case WM_CTLCOLOREDIT: { SetTextColor((HDC)wParam, RGB(120,0x00,0xAA)); SetBkMode((HDC)wParam, TRANSPARENT); }return (LONG)wc.hbrBackground;
+    case WM_CTLCOLORLISTBOX: { SetTextColor((HDC)wParam, RGB(0, 255, 255)); SetBkMode((HDC)wParam, TRANSPARENT); }return (LONG)wc.hbrBackground;
+    case WM_CTLCOLORBTN: { SetTextColor((HDC)wParam, RGB(0, 255, 255));	SetBkMode((HDC)wParam, TRANSPARENT); }return (LONG)wc.hbrBackground;
+    case WM_CTLCOLORMSGBOX:	return (long)wc.hbrBackground;
+    case WM_DESTROY: PostQuitMessage(0); return 0;
     } 
     return DefWindowProc(hwnd,msg,wParam,lParam);
 }
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) { 
-    WNDCLASS wc{}; 
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst; 
-    wc.hbrBackground = CreateSolidBrush(RGB(0xCC, 0xCC, 0x00));
+    wc.hbrBackground = CreateSolidBrush(RGB(0xCC, 0x00, 0xCC));
     wc.lpszClassName = L"LCR2-VT100"; 
     wc.hIcon = LoadIcon(wc.hInstance,(LPCTSTR)0x65);
     RegisterClass(&wc); 
-    HWND hwnd = CreateWindow(wc.lpszClassName, L"Terminal LCR2 VT-100", WS_OVERLAPPED |WS_CAPTION |WS_SYSMENU |WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 0x280, 0x1C0, nullptr, nullptr, hInst, nullptr);
+    HWND hwnd = CreateWindowEx(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP,wc.lpszClassName, L"Terminal LCR2 VT-100", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 0x280, 0x1C0, nullptr, nullptr, hInst, nullptr);
+    HWND imghWnd = CreateWindowEx(0, L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_ICON, 1, 3, 10, 10, hwnd, (HMENU)45000, wc.hInstance, NULL);
+    SendMessage(imghWnd, STM_SETIMAGE, IMAGE_ICON, (LPARAM)LoadIcon(wc.hInstance, (LPCTSTR)0x65)); //Logo Autheur
+    SetTimer(hwnd, 0x1000, 0x3E8, (TIMERPROC)NULL);
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd); 
     MSG msg;
